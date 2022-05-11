@@ -1,0 +1,122 @@
+server {
+    server_name ${WP_FQDN};
+    charset UTF-8;
+    listen 443 ssl;
+    ssl_certificate /etc/nginx/certs/${WP_FQDN}.pem;
+    ssl_certificate_key /etc/nginx/certs/${WP_FQDN}-key.pem;
+
+    resolver 127.0.0.11;
+    set $resp_body "";
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+    
+    location / {
+            index index.php index.html;
+            try_files $uri $uri/ /index.php?$args;
+    }
+
+    location ~ \.php$ {
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-CSRF-Token $http_x_csrf_token;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        #fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass ${WP_HOST_PORT};
+        include fastcgi_params;
+        fastcgi_index index.php;
+        #fastcgi_param SCRIPT_NAME index.php;
+        fastcgi_param SCRIPT_FILENAME $document_root/$fastcgi_script_name;
+        #fastcgi_param REQUEST_URI $1;
+        #fastcgi_param PATH_INFO $fastcgi_path_info;
+        fastcgi_buffering off;
+        add_header Access-Control-Allow-Origin "${GATS_FQDN}";
+        add_header Access-Control-Allow-Headers "Origin, Authorization, Accept, Content-Type";
+        add_header Access-Control-Allow-Methods "POST, GET, OPTIONS";
+        add_header Access-Control-Allow-Credentials true;
+    }
+}
+
+server {
+    server_name ${GATS_FQDN};
+    charset UTF-8;
+    listen 443 ssl;
+    ssl_certificate /etc/nginx/certs/${GATS_FQDN}.pem;
+    ssl_certificate_key /etc/nginx/certs/${GATS_FQDN}-key.pem;
+
+    resolver 127.0.0.11;
+    set $resp_body "";
+
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-XSS-Protection "1; mode=block";
+    add_header X-Content-Type-Options "nosniff";
+    
+    location ~* "^/socket.io/(.*)" {
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_pass http://gats:8000/socket.io/$1$is_args$args;
+    }
+
+    location ~* "^/__webpack_hmr" {
+        proxy_redirect off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_pass http://gats:8000/__webpack_hmr$is_args$args;
+    }
+
+    location ~* "^/__graphql" {
+        proxy_redirect off;
+        proxy_pass http://gats:8000/__graphql$is_args$args;
+    }
+
+    location ~/ {
+        proxy_redirect off;
+        proxy_pass http://gats:8000${request_uri}$is_args$args;
+    }
+
+    set $debug_var '';
+    proxy_read_timeout 600;
+
+    add_header Cache-Control no-cache;
+    sendfile off;
+    etag off;
+    if_modified_since off;
+}
+
+server {
+    server_name ${WP_FQDN};
+    charset UTF-8;
+    listen 80;
+
+    location ^~ /.well-known/acme-challenge/ {
+      default_type "text/plain";
+      root /var/www/html/;
+    }
+
+    location / {
+      # Redirect all HTTP requests to HTTPS with a 301 Moved Permanently response.
+      return 301 https://${WP_FQDN};
+    }
+}
+
+server {
+    server_name ${GATS_FQDN};
+    charset UTF-8;
+    listen 80;
+
+    location ^~ /.well-known/acme-challenge/ {
+      default_type "text/plain";
+      root /var/www/html/;
+    }
+
+    location / {
+      # Redirect all HTTP requests to HTTPS with a 301 Moved Permanently response.
+      return 301 https://${GATS_FQDN};
+    }
+}

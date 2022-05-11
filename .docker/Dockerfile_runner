@@ -1,0 +1,15 @@
+FROM ubuntu:latest
+
+RUN apt update && \
+    apt install language-pack-ja sudo curl apt-transport-https \
+    ca-certificates gnupg-agent software-properties-common --yes
+
+RUN useradd runner -m && echo runner:runpass | chpasswd
+
+USER runner
+WORKDIR /home/runner
+
+RUN mkdir actions-runner && cd actions-runner
+RUN curl -o actions-runner-linux-x64-2.289.1.tar.gz -L https://github.com/actions/runner/releases/download/v2.289.1/actions-runner-linux-x64-2.289.1.tar.gz
+RUN tar xzf ./actions-runner-linux-x64-2.289.1.tar.gz
+

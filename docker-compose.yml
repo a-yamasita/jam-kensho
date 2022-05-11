@@ -1,0 +1,100 @@
+version: '3.7'
+services:
+    wp:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile_wp
+            args:
+                UID: ${UID}
+                GID: ${GID}
+        expose:
+            - "9000"
+        volumes:
+            - type: bind
+              source: ./php/php.ini-dev
+              target: /usr/local/etc/php/php.ini
+            - ./wp:/var/www/html
+        env_file:
+            - ./.env
+        depends_on:
+            - db
+        networks:
+            - internal
+
+    db:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile_db
+        restart: always
+        env_file:
+            - ./.env
+        volumes:
+            - ./.dbdata:/var/lib/mysql
+        networks:
+            - internal
+    gats:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile_gats
+            args:
+                UID: ${UID}
+                GID: ${GID}
+        tty: true
+        expose:
+            - "8000"
+        volumes:
+            - ./gats:/home/node/app
+            - ~/.ssh:/home/node/.ssh
+        environment:
+            - NODE_ENV=development
+            - NODE_EXTRA_CA_CERTS=/usr/share/ca-certificates/selfca.crt
+        env_file:
+            - ./.env
+        extra_hosts:
+            - "${WP_FQDN}:${HOST_IP}"
+        networks:
+            - internal
+
+    rp:
+        build:
+            context: .
+            dockerfile: .docker/Dockerfile_rp
+            args:
+                UID: ${UID}
+                GID: ${GID}
+        tty: true
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - type: bind
+              source: ./rp/nginx.conf.dev
+              target: /etc/nginx/nginx.conf
+            - ./rp/conf.d/:/etc/nginx/conf.d/
+            - ./rp/certs/:/etc/nginx/certs/
+            - ./wp:/var/www/html
+        env_file:
+            - ./.env
+        command: >
+            /bin/sh -c 
+            "envsubst '
+            $$WP_FQDN
+            $$GATS_FQDN
+            $$WP_HOST_PORT
+            ' < /etc/nginx/conf.d/dev.conf.template > /etc/nginx/conf.d/dev.conf
+            && nginx -g 'daemon off;'"
+        networks:
+            - internal
+        depends_on:
+            - wp
+        
+    pma:
+        image: phpmyadmin/phpmyadmin:latest
+        ports:
+            - "8081:80"
+        networks:
+            - internal
+
+networks:
+    internal:
+        driver: bridge

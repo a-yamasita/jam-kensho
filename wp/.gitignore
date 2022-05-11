@@ -1,0 +1,10 @@
+*
+!*/
+!/.gitignore
+!/composer.json
+!/composer.lock
+.DS_Store
+*.swp
+
+wp-content/plugins/*
+!wp-content/themes/docs_aoe2_jp/**

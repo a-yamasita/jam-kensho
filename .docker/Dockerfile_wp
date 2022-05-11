@@ -1,0 +1,14 @@
+FROM wordpress:5.9.3-php8.1-fpm-alpine
+ARG UID
+ARG GID
+COPY --from=composer /usr/bin/composer /usr/bin/composer
+RUN curl https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar -o /usr/local/bin/wp
+RUN chmod +x /usr/local/bin/wp
+RUN apk update && apk add shadow
+RUN usermod -u $UID -d /var/www/html -s /bin/ash www-data
+RUN groupmod -g $GID www-data
+RUN chown -R $UID:$GID /var/www/html
+RUN echo "alias wp='wp --allow-root'" > /root/.bashrc
+RUN rm -f /usr/local/etc/php/conf.d/error-logging.ini
+USER www-data
+#RUN wp core install --path=/var/www/html --url=$FQDN --title=$TITLE --admin_user=$USER --admin_password=$PASS --admin_email=$USER@example.jp
